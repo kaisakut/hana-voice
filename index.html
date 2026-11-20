@@ -244,6 +244,23 @@ function playPcm(b64s){
 }
 function stopPlay(){ playing.forEach(s => { try{ s.onended = null; s.stop(); }catch(e){} }); playing = []; nextT = 0; $('hush').disabled = true; }
 
+/* ===== 会話の記録（V1_音声ログ に送る。台帳には触れない） ===== */
+let sid = '', logBuf = [], pendUser = '', pendAi = '';
+const stamp = () => new Date().toLocaleString('sv-SE');
+function logPush(who, text){ text = String(text || '').trim(); if(text) logBuf.push({ t: stamp(), who, text }); }
+function logFlushTurn(){ if(pendUser){ logPush('人', pendUser); pendUser = ''; } if(pendAi){ logPush('AI', pendAi); pendAi = ''; } }
+function sendLogs(final){
+  if(!logBuf.length || !GAS || !sid) return;
+  const rows = logBuf.splice(0), chunks = [];
+  let cur = [];
+  rows.forEach(r => { cur.push(r); if(encodeURIComponent(JSON.stringify(cur)).length > 5000){ const last = cur.pop(); if(cur.length) chunks.push(cur); cur = [last]; } });
+  if(cur.length) chunks.push(cur);
+  chunks.forEach(c => {
+    const u = new URLSearchParams({ voice: 'log', k: KEY, sid, r: WHO, rows: JSON.stringify(c) });
+    try{ fetch(GAS + '?' + u.toString(), { keepalive: !!final }).catch(() => {}); }catch(e){}
+  });
+}
+
 /* ===== Gemini Live ===== */
 let ws = null, ready = false, handle = null, tok = null, busy = 0, started = 0, secSent = 0, closing = false, usage = 0;
 function send(o){ if(ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
@@ -297,17 +314,17 @@ function onServer(m){
   const sc = m.serverContent;
   if(sc){
     if(sc.interrupted){ stopPlay(); dropAudio = false; }
-    if(sc.inputTranscription && sc.inputTranscription.text){ if(!curUser) turns.push(''); turns[turns.length - 1] += sc.inputTranscription.text; if(turns.length > 4) turns.shift(); addText('user', sc.inputTranscription.text); lastHeardAt = Date.now(); curAi = null; }
+    if(sc.inputTranscription && sc.inputTranscription.text){ if(pendAi){ logPush('AI', pendAi); pendAi = ''; } pendUser += sc.inputTranscription.text; if(!curUser) turns.push(''); turns[turns.length - 1] += sc.inputTranscription.text; if(turns.length > 4) turns.shift(); addText('user', sc.inputTranscription.text); lastHeardAt = Date.now(); curAi = null; }
     if(sc.modelTurn && sc.modelTurn.parts){
       sc.modelTurn.parts.forEach(p => { if(p.inlineData && /audio/.test(p.inlineData.mimeType || '')) playPcm(p.inlineData.data); });
     }
-    if(sc.outputTranscription && sc.outputTranscription.text){ curUser = null; addText('ai', sc.outputTranscription.text); }
-    if(sc.turnComplete){ curUser = null; curAi = null; dropAudio = false; }
+    if(sc.outputTranscription && sc.outputTranscription.text){ if(pendUser){ logPush('人', pendUser); pendUser = ''; } pendAi += sc.outputTranscription.text; curUser = null; addText('ai', sc.outputTranscription.text); }
+    if(sc.turnComplete){ curUser = null; curAi = null; dropAudio = false; logFlushTurn(); sendLogs(); }
   }
   if(m.toolCall && m.toolCall.functionCalls) runTools(m.toolCall.functionCalls);
   if(m.toolCallCancellation) (m.toolCallCancellation.ids || []).forEach(id => cancelled.add(id));
   if(m.sessionResumptionUpdate && m.sessionResumptionUpdate.newHandle && m.sessionResumptionUpdate.resumable !== false) handle = m.sessionResumptionUpdate.newHandle;
-  if(m.usageMetadata && m.usageMetadata.totalTokenCount) usage = Math.max(usage, m.usageMetadata.totalTokenCount);
+  if(m.usageMetadata && m.usageMetadata.totalTokenCount) usage += m.usageMetadata.totalTokenCount;
   if(m.goAway) resume();
 }
 async function resume(){
@@ -344,6 +361,7 @@ async function runTools(calls){
     } else if(fc.name === 'record'){
       res = await doRecord(a);
     } else res = { ok:false, message:'知らないツールです：' + fc.name };
+    logFlushTurn(); logPush(fc.name === 'record' ? '記録' : '照会', JSON.stringify(fc.args || {}).slice(0, 300) + ' → ' + (res.level || (res.ok === false ? 'error' : 'ok')) + ' ' + String(res.message || res.preview || '').slice(0, 300));
     if(cancelled.has(fc.id)) continue;
     out.push({ id: fc.id, name: fc.name, response: { result: trim(res) } });
   }
@@ -384,6 +402,7 @@ async function begin(){
   try{
     await startAudio();
     started = Date.now(); secSent = 0; usage = 0; turns = []; handle = null; closing = false;
+    sid = 'V' + Date.now().toString(36).toUpperCase(); logBuf = []; pendUser = pendAi = ''; logPush('開始', '記録者 ' + (WHO || '（未入力）') + '・' + (navigator.userAgent.match(/iPhone|iPad|Android|Mac|Windows/) || ['?'])[0]);
     await connect(false);
     $('mic').classList.add('live'); $('mic').textContent = '話し中'; $('mic').disabled = false; $('end').disabled = false;
     send({ clientContent: { turns: [{ role: 'user', parts: [{ text: '（いま接続しました。ひとことで挨拶して、何を確かめたいか・記録したいかを聞いてください）' }] }], turnComplete: true } });
@@ -398,6 +417,7 @@ let tick = null;
 function meter(){ if(!started) return; const m = Math.floor((Date.now() - started) / 60000); $('meter').textContent = `会話 ${m}分・送った音声 ${Math.round(secSent)}秒`; }
 function endSession(silent){
   closing = true; ready = false;
+  logFlushTurn(); if(sid){ logPush('終了', '会話 ' + Math.round((Date.now() - (started || Date.now())) / 1000) + '秒・送った音声 ' + Math.round(secSent) + '秒・トークン ' + usage); sendLogs(true); }
   try{ ws && ws.close(); }catch(e){}
   ws = null; stopAudio(); clearInterval(tick);
   $('mic').classList.remove('live'); $('mic').textContent = '話す'; $('mic').disabled = false; $('end').disabled = true; $('hush').disabled = true;
