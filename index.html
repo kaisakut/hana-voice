@@ -116,8 +116,9 @@ dialog button.pri{background:var(--accent);color:var(--accent-ink);border-color:
 'use strict';
 /* ===== 設定 ===== */
 const Q = new URLSearchParams(location.search);
-// GAS（作付けボードの「音声窓口」デプロイ）の URL。?gas= で差し替えられる（試験用）
-const GAS = Q.get('gas') || 'https://script.google.com/macros/s/AKfycbzyAl6EvjNSGq5LlU3sobLhVPTppNB04EFE6WcE8l3vQEXvJs21UM5OECvs8vBx5S4EIw/exec';
+// GAS（作付けボードの「音声窓口」デプロイ）の場所は、配るURLの ?g= にだけ書く（このページの中には書かない）。?gas= は試験用
+const GID = (Q.get('g') || '').replace(/[^\w-]/g, '');
+const GAS = Q.get('gas') || (GID ? 'https://script.google.com/macros/s/' + GID + '/exec' : '');
 const KEY = Q.get('k') || '';
 const WS_BASE = Q.get('ws') || 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.';
 const VERSIONS = ['v1beta', 'v1alpha'];          // 使い捨ての鍵が通る版。上から試す
@@ -249,10 +250,11 @@ function send(o){ if(ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
 async function connect(isResume){
   setStatus(isResume ? 'つなぎ直しています…' : 'つないでいます…');
-  for(const ver of VERSIONS){
+  for(let i = 0; i < VERSIONS.length; i++){
     tok = await gas({ voice: 'token', r: WHO });
     if(!tok.ok){ throw new Error(tok.message || '鍵をもらえませんでした'); }
-    const ok = await openWs(ver);
+    const vs = [tok.ver].concat(VERSIONS).filter((v, j, a) => v && a.indexOf(v) === j);   // 鍵を発行できた版から試す
+    const ok = await openWs(vs[i] || VERSIONS[i]);
     if(ok) return;
   }
   throw new Error('Gemini につながりませんでした');
@@ -376,7 +378,7 @@ async function doRecord(a){
 
 /* ===== 開始と終了 ===== */
 async function begin(){
-  if(!KEY){ setStatus('配られたURL（k= が付いたもの）から開いてください', true); return; }
+  if(!KEY || !GAS){ setStatus('配られたURLをそのまま開いてください（URLの後ろの部分が足りません）', true); return; }
   if(!WHO) await askName();
   $('mic').disabled = true;
   try{
