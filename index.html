@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>作付け 音声アシスタント</title>
+<link rel="icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f331.png">
+<style>
+:root{
+  color-scheme: light;
+  --page:#f6f7f3; --surface:#ffffff; --surface2:#eef1ea; --ink:#16200f; --ink2:#55604c; --muted:#8a9482;
+  --border:rgba(22,32,15,.12); --accent:#2f7d32; --accent-ink:#ffffff; --accent-soft:#dcefd9;
+  --user:#e3effd; --user-ink:#123a66; --warn:#b26a00; --warn-soft:#fff2d9; --bad:#c62828; --bad-soft:#fde3e3;
+  --shadow:0 6px 24px rgba(0,0,0,.12);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --page:#0f120d; --surface:#1a1f17; --surface2:#232a1f; --ink:#eef3e8; --ink2:#bac4b1; --muted:#7f8a76;
+    --border:rgba(255,255,255,.12); --accent:#5cb860; --accent-ink:#0f120d; --accent-soft:#1f3a20;
+    --user:#16304d; --user-ink:#d6e8ff; --warn:#f0b24a; --warn-soft:#3a2c10; --bad:#ff6b6b; --bad-soft:#3d1717;
+    --shadow:0 6px 24px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#0f120d; --surface:#1a1f17; --surface2:#232a1f; --ink:#eef3e8; --ink2:#bac4b1; --muted:#7f8a76;
+  --border:rgba(255,255,255,.12); --accent:#5cb860; --accent-ink:#0f120d; --accent-soft:#1f3a20;
+  --user:#16304d; --user-ink:#d6e8ff; --warn:#f0b24a; --warn-soft:#3a2c10; --bad:#ff6b6b; --bad-soft:#3d1717;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--page);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif;
+  display:flex;flex-direction:column;-webkit-text-size-adjust:100%}
+header{display:flex;align-items:center;gap:10px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));
+  background:var(--surface);border-bottom:1px solid var(--border)}
+header h1{font-size:17px;margin:0;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .who{font-size:13px;color:var(--ink2);background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px 10px;cursor:pointer}
+.badge{font-size:12px;border-radius:999px;padding:2px 8px;background:var(--surface2);color:var(--ink2);border:1px solid var(--border)}
+.badge.on{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+#log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch}
+.hello{color:var(--ink2);font-size:15px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.hello b{color:var(--ink)}
+.hello ul{margin:6px 0 0;padding-left:20px}
+.msg{max-width:86%;padding:10px 14px;border-radius:16px;white-space:pre-wrap;word-break:break-word}
+.msg.user{align-self:flex-end;background:var(--user);color:var(--user-ink);border-bottom-right-radius:4px}
+.msg.ai{align-self:flex-start;background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px}
+.chip{align-self:center;font-size:13px;color:var(--ink2);background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px 12px;max-width:94%;text-align:center}
+.chip.ok{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.chip.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.chip.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+footer{background:var(--surface);border-top:1px solid var(--border);padding:12px 16px;padding-bottom:max(14px,env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;align-items:center;gap:10px}
+#status{font-size:15px;color:var(--ink2);min-height:24px;text-align:center}
+#status.err{color:var(--bad)}
+.row{display:flex;gap:12px;align-items:center;justify-content:center;width:100%}
+#mic{width:96px;height:96px;border-radius:50%;border:none;background:var(--accent);color:var(--accent-ink);font-size:15px;font-weight:700;
+  box-shadow:var(--shadow);cursor:pointer;position:relative;flex:none;touch-action:manipulation}
+#mic.live{background:var(--bad)}
+#mic:disabled{opacity:.5}
+#mic::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:3px solid var(--accent);opacity:0;transform:scale(var(--lv,1));transition:transform .08s linear,opacity .2s}
+#mic.live::after{opacity:.55;border-color:var(--bad)}
+.side{min-width:96px;height:48px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--ink);font-size:14px;cursor:pointer;padding:0 12px}
+.side:disabled{opacity:.4}
+label.opt{font-size:13px;color:var(--ink2);display:flex;gap:6px;align-items:center}
+dialog{border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--ink);padding:20px;width:min(92vw,380px);box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog h2{font-size:17px;margin:0 0 8px}
+dialog p{margin:0 0 12px;color:var(--ink2);font-size:14px}
+dialog input{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--page);color:var(--ink)}
+dialog .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+dialog button{font:inherit;padding:8px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--ink);cursor:pointer}
+dialog button.pri{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.small{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌱 作付け 音声アシスタント</h1>
+  <span id="mode" class="badge" hidden></span>
+  <span id="who" class="who" title="記録者の名前を変える">名前を入れる</span>
+</header>
+
+<div id="log" aria-live="polite">
+  <div class="hello">
+    <b>話しかけて、作付けの照会や記録ができます。</b>
+    <ul>
+      <li>例：「9号棟には今なにがある？」「外1はあと何枚置ける？」</li>
+      <li>例：「1号棟のパンジーを外1に100枚出した」</li>
+      <li>記録するときは、必ず内容を読み上げて「はい」を聞いてから書きます。</li>
+    </ul>
+  </div>
+</div>
+
+<footer>
+  <div id="status">下のボタンを押すと話しはじめます</div>
+  <div class="row">
+    <button id="hush" class="side" disabled>AIの話を止める</button>
+    <button id="mic" aria-label="話しはじめる">話す</button>
+    <button id="end" class="side" disabled>終わる</button>
+  </div>
+  <label class="opt"><input type="checkbox" id="duplex"> イヤホン使用中（AIが話している途中でも話しかけられる）</label>
+  <div class="small" id="meter"></div>
+</footer>
+
+<dialog id="nameDlg">
+  <h2>記録者の名前</h2>
+  <p>台帳に記録するとき、記録者として残ります。</p>
+  <input id="nameIn" autocomplete="name" placeholder="例：井上">
+  <div class="btns"><button id="nameNo">あとで</button><button id="nameOk" class="pri">決める</button></div>
+</dialog>
+
+<script>
+(() => {
+'use strict';
+/* ===== 設定 ===== */
+const Q = new URLSearchParams(location.search);
+// GAS（作付けボードの「音声窓口」デプロイ）の URL。?gas= で差し替えられる（試験用）
+const GAS = Q.get('gas') || 'https://script.google.com/macros/s/AKfycbzyAl6EvjNSGq5LlU3sobLhVPTppNB04EFE6WcE8l3vQEXvJs21UM5OECvs8vBx5S4EIw/exec';
+const KEY = Q.get('k') || '';
+const WS_BASE = Q.get('ws') || 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.';
+const VERSIONS = ['v1beta', 'v1alpha'];          // 使い捨ての鍵が通る版。上から試す
+
+const $ = id => document.getElementById(id);
+const store = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} } };
+let WHO = (Q.get('r') || store.get('voice-who') || '').trim();
+
+/* ===== 画面 ===== */
+const log = $('log');
+function scrollEnd(){ log.scrollTop = log.scrollHeight; }
+function chip(text, cls){ const d = document.createElement('div'); d.className = 'chip ' + (cls || ''); d.textContent = text; log.appendChild(d); scrollEnd(); return d; }
+let curUser = null, curAi = null;
+function addText(role, text){
+  if(!text) return;
+  if(role === 'user'){ if(!curUser){ curUser = document.createElement('div'); curUser.className = 'msg user'; log.appendChild(curUser); } curUser.textContent += text; }
+  else { if(!curAi){ curAi = document.createElement('div'); curAi.className = 'msg ai'; log.appendChild(curAi); } curAi.textContent += text; }
+  scrollEnd();
+}
+function setStatus(t, err){ const s = $('status'); s.textContent = t; s.classList.toggle('err', !!err); }
+function showWho(){ $('who').textContent = WHO ? WHO + ' さん' : '名前を入れる'; }
+showWho();
+$('who').onclick = () => askName();
+function askName(){
+  return new Promise(ok => {
+    const d = $('nameDlg'); $('nameIn').value = WHO;
+    $('nameOk').onclick = () => { WHO = $('nameIn').value.trim(); if(WHO) store.set('voice-who', WHO); showWho(); d.close(); ok(); };
+    $('nameNo').onclick = () => { d.close(); ok(); };
+    d.showModal(); setTimeout(() => $('nameIn').focus(), 50);
+  });
+}
+
+/* ===== GAS ===== */
+async function gas(params, ms){
+  const u = new URLSearchParams(Object.assign({}, params, { k: KEY }));
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms || 45000);
+  try{
+    const r = await fetch(GAS + '?' + u.toString(), { signal: ac.signal, redirect: 'follow' });
+    const tx = await r.text();
+    try{ return JSON.parse(tx); }catch(e){ return { ok:false, level:'error', code:'NOT_JSON', message:'GASの答えがJSONではありません（' + tx.slice(0, 80) + '）' }; }
+  }catch(e){
+    return { ok:false, level:'error', code:'NETWORK', message:'GASにつながりませんでした（' + (e.name === 'AbortError' ? '時間切れ' : e.message) + '）' };
+  }finally{ clearTimeout(t); }
+}
+
+/* ===== 音声の入出力 ===== */
+let ctx = null, mic = null, node = null, src = null, wake = null;
+const WORKLET = `
+class Cap extends AudioWorkletProcessor{
+  constructor(){ super(); this.r = sampleRate / 16000; this.p = 0; this.s = 0; this.c = 0; this.b = new Int16Array(1600); this.n = 0; }
+  process(inputs){
+    const x = inputs[0] && inputs[0][0]; if(!x) return true;
+    for(let k = 0; k < x.length; k++){
+      this.s += x[k]; this.c++; this.p += 1;
+      if(this.p >= this.r){
+        this.p -= this.r; let v = this.s / this.c; this.s = 0; this.c = 0;
+        v = v < -1 ? -1 : v > 1 ? 1 : v; this.b[this.n++] = v < 0 ? v * 0x8000 : v * 0x7fff;
+        if(this.n === this.b.length){ this.port.postMessage(this.b.buffer, [this.b.buffer]); this.b = new Int16Array(1600); this.n = 0; }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('cap', Cap);`;
+
+async function startAudio(){
+  const AC = window.AudioContext || window.webkitAudioContext;
+  ctx = new AC();
+  await ctx.resume();
+  mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+  const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
+  await ctx.audioWorklet.addModule(url);
+  src = ctx.createMediaStreamSource(mic);
+  node = new AudioWorkletNode(ctx, 'cap');
+  node.port.onmessage = e => onChunk(new Int16Array(e.data));
+  src.connect(node);
+  // 出力に何もつながないと止まるブラウザがあるので、音の出ないゲインにつないでおく
+  const g = ctx.createGain(); g.gain.value = 0; node.connect(g); g.connect(ctx.destination);
+  try{ if(navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); }catch(e){}
+}
+function stopAudio(){
+  stopPlay();
+  try{ src && src.disconnect(); node && node.disconnect(); }catch(e){}
+  if(mic) mic.getTracks().forEach(t => t.stop());
+  try{ ctx && ctx.close(); }catch(e){}
+  try{ wake && wake.release(); }catch(e){}
+  ctx = mic = node = src = wake = null;
+}
+
+/* 話していないときは送らない（料金は送った音声の長さで決まる）。話しはじめの0.3秒は取っておいて一緒に送る */
+let noise = 0.004, lastVoice = 0, pre = [], sentEnd = true;
+function rms(a){ let s = 0; for(let i = 0; i < a.length; i++){ const v = a[i] / 32768; s += v * v; } return Math.sqrt(s / a.length); }
+function onChunk(pcm){
+  const lv = rms(pcm), now = performance.now();
+  $('mic').style.setProperty('--lv', String(1 + Math.min(0.35, lv * 6)));
+  const voiced = lv > Math.max(0.012, noise * 2.5);
+  if(!voiced) noise = noise * 0.97 + lv * 0.03;
+  if(!ws || !ready) return;
+  if(speaking() && !$('duplex').checked){ pre = []; return; }      // AIが話している間はマイクを止める（スピーカーの声を拾わないように）
+  if(voiced) lastVoice = now;
+  if(now - lastVoice < 1500){
+    if(pre.length){ pre.forEach(sendPcm); pre = []; }
+    sendPcm(pcm); sentEnd = false;
+  } else {
+    pre.push(pcm); if(pre.length > 3) pre.shift();
+    if(!sentEnd){ send({ realtimeInput: { audioStreamEnd: true } }); sentEnd = true; }
+  }
+}
+function b64(u8){ let s = ''; for(let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+function sendPcm(pcm){ secSent += pcm.length / 16000; send({ realtimeInput: { audio: { data: b64(new Uint8Array(pcm.buffer)), mimeType: 'audio/pcm;rate=16000' } } }); }
+
+let playing = [], nextT = 0, dropAudio = false;
+function speaking(){ return playing.length > 0; }
+function playPcm(b64s){
+  if(!ctx || dropAudio) return;
+  const bin = atob(b64s), n = bin.length >> 1, f = new Float32Array(n);
+  for(let i = 0; i < n; i++){ let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if(v >= 0x8000) v -= 0x10000; f[i] = v / 32768; }
+  const buf = ctx.createBuffer(1, n, 24000); buf.copyToChannel(f, 0);
+  const s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination);
+  const t = Math.max(ctx.currentTime + 0.04, nextT); s.start(t); nextT = t + buf.duration;
+  playing.push(s); $('hush').disabled = false; setStatus('話しています…');
+  s.onended = () => { playing = playing.filter(x => x !== s); if(!playing.length){ $('hush').disabled = true; lastVoice = 0; if(ready) setStatus(busy ? '確認しています…' : '聞いています。どうぞ話してください'); } };
+}
+function stopPlay(){ playing.forEach(s => { try{ s.onended = null; s.stop(); }catch(e){} }); playing = []; nextT = 0; $('hush').disabled = true; }
+
+/* ===== Gemini Live ===== */
+let ws = null, ready = false, handle = null, tok = null, busy = 0, started = 0, secSent = 0, closing = false, usage = 0;
+function send(o){ if(ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+
+async function connect(isResume){
+  setStatus(isResume ? 'つなぎ直しています…' : 'つないでいます…');
+  for(const ver of VERSIONS){
+    tok = await gas({ voice: 'token', r: WHO });
+    if(!tok.ok){ throw new Error(tok.message || '鍵をもらえませんでした'); }
+    const ok = await openWs(ver);
+    if(ok) return;
+  }
+  throw new Error('Gemini につながりませんでした');
+}
+function openWs(ver){
+  return new Promise(resolve => {
+    let done = false;
+    const w = new WebSocket(WS_BASE + ver + '.GenerativeService.BidiGenerateContentConstrained?access_token=' + encodeURIComponent(tok.token));
+    const fin = v => { if(!done){ done = true; resolve(v); } };
+    w.onopen = () => {
+      const setup = JSON.parse(JSON.stringify(tok.setup));
+      setup.sessionResumption = handle ? { handle } : {};
+      w.send(JSON.stringify({ setup }));
+    };
+    w.onmessage = async ev => {
+      let txt = ev.data; if(typeof txt !== 'string') txt = await (txt.text ? txt.text() : new Response(txt).text());
+      let m; try{ m = JSON.parse(txt); }catch(e){ return; }
+      if(m.setupComplete !== undefined){
+        const old = ws; ws = w; ready = true; fin(true);
+        if(old && old !== w){ try{ old.onclose = null; old.close(); }catch(e){} }
+        $('mode').hidden = false; $('mode').textContent = tok.record ? '照会・記録' : '照会のみ'; $('mode').classList.toggle('on', !!tok.record);
+        setStatus('聞いています。どうぞ話してください');
+        return;
+      }
+      if(w === ws) onServer(m);
+    };
+    w.onclose = ev => {
+      if(!done){ fin(false); return; }
+      if(w !== ws || closing) return;
+      ready = false;
+      setStatus('接続が切れました' + (ev.reason ? '（' + ev.reason + '）' : '') + '。もう一度「話す」を押してください', true);
+      endSession(true);
+    };
+    w.onerror = () => {};
+    setTimeout(() => { if(!done){ try{ w.close(); }catch(e){} fin(false); } }, 15000);
+  });
+}
+
+function onServer(m){
+  const sc = m.serverContent;
+  if(sc){
+    if(sc.interrupted){ stopPlay(); dropAudio = false; }
+    if(sc.inputTranscription && sc.inputTranscription.text){ if(!curUser) turns.push(''); turns[turns.length - 1] += sc.inputTranscription.text; if(turns.length > 4) turns.shift(); addText('user', sc.inputTranscription.text); lastHeardAt = Date.now(); curAi = null; }
+    if(sc.modelTurn && sc.modelTurn.parts){
+      sc.modelTurn.parts.forEach(p => { if(p.inlineData && /audio/.test(p.inlineData.mimeType || '')) playPcm(p.inlineData.data); });
+    }
+    if(sc.outputTranscription && sc.outputTranscription.text){ curUser = null; addText('ai', sc.outputTranscription.text); }
+    if(sc.turnComplete){ curUser = null; curAi = null; dropAudio = false; }
+  }
+  if(m.toolCall && m.toolCall.functionCalls) runTools(m.toolCall.functionCalls);
+  if(m.toolCallCancellation) (m.toolCallCancellation.ids || []).forEach(id => cancelled.add(id));
+  if(m.sessionResumptionUpdate && m.sessionResumptionUpdate.newHandle && m.sessionResumptionUpdate.resumable !== false) handle = m.sessionResumptionUpdate.newHandle;
+  if(m.usageMetadata && m.usageMetadata.totalTokenCount) usage = Math.max(usage, m.usageMetadata.totalTokenCount);
+  if(m.goAway) resume();
+}
+async function resume(){
+  if(resuming) return; resuming = true;
+  try{ await connect(true); }catch(e){ setStatus(String(e.message || e), true); }
+  resuming = false;
+}
+let resuming = false;
+
+/* ===== ツール（GAS へ取りに行く） ===== */
+const cancelled = new Set();
+let turns = [], lastHeardAt = 0;          // 本人の発話（直近4回まで。記録したら空にする）
+const heard = () => turns.join(' ／ ').trim();
+const previews = {};          // 読み上げて確認した記録（fn＋args → 時刻と発話）
+function keyOf(a){ let x = a.args; try{ x = JSON.stringify(JSON.parse(a.args)); }catch(e){} return a.fn + '|' + x; }
+function trim(o){
+  // 長すぎる答えは配列を短くしてから渡す（会話の記憶を圧迫しないように）
+  const s = JSON.stringify(o); if(s.length < 8000) return o;
+  const cut = v => Array.isArray(v) ? v.slice(0, 25).map(cut).concat(v.length > 25 ? ['…ほか' + (v.length - 25) + '件'] : []) : (v && typeof v === 'object') ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, cut(x)])) : v;
+  return cut(o);
+}
+async function runTools(calls){
+  busy++; setStatus('確認しています…');
+  const out = [];
+  for(const fc of calls){
+    const a = fc.args || {};
+    let res;
+    if(fc.name === 'query'){
+      const label = a.type === 'place' ? '場所 ' + (a.place || '') : a.type === 'item' ? '品名 ' + (a.item || '') + (a.variety ? ' ' + a.variety : '') : a.type === 'lot' ? (a.lot || 'ロット') : (a.type || '');
+      const c = chip('🔎 照会中：' + label);
+      const p = { voice: 'query' }; Object.keys(a).forEach(k => { if(a[k] !== undefined && a[k] !== null && a[k] !== '') p[k] = String(a[k]); });
+      res = await gas(p);
+      c.textContent = (res.ok === false ? '⚠ 照会できませんでした：' : '🔎 照会：') + label; if(res.ok === false) c.className = 'chip bad';
+    } else if(fc.name === 'record'){
+      res = await doRecord(a);
+    } else res = { ok:false, message:'知らないツールです：' + fc.name };
+    if(cancelled.has(fc.id)) continue;
+    out.push({ id: fc.id, name: fc.name, response: { result: trim(res) } });
+  }
+  busy--;
+  if(out.length) send({ toolResponse: { functionResponses: out } });
+  if(!busy && !speaking() && ready) setStatus('聞いています。どうぞ話してください');
+}
+async function doRecord(a){
+  if(!WHO){ await askName(); if(!WHO) return { ok:false, level:'error', code:'REPORTER_REQUIRED', message:'記録者の名前が未入力です。画面右上で名前を入れてもらってください' }; }
+  const k = keyOf(a), dry = String(a.dryRun) !== 'false';
+  const base = { voice: 'record', fn: a.fn || '', args: typeof a.args === 'string' ? a.args : JSON.stringify(a.args || {}), reporter: WHO, interpretation: a.interpretation || '' };
+  if(dry){
+    const c = chip('📝 記録の内容を確認中…');
+    const utter = heard() || '（音声）';
+    const res = await gas(Object.assign(base, { utterance: utter, dryRun: 'true' }));
+    if(res.ok !== false && res.level !== 'error'){ previews[k] = { t: Date.now(), utter, n: turns.length }; c.textContent = '📝 確認待ち：' + (res.preview || res.message || ''); c.className = 'chip warn'; }
+    else { c.textContent = '✕ 記録できません：' + (res.message || ''); c.className = 'chip bad'; }
+    return res;
+  }
+  // 書く：同じ内容を先に読み上げていて、そのあと本人が何か言ったときだけ
+  const pv = previews[k];
+  if(!pv || !(lastHeardAt > pv.t)){
+    return { ok:false, level:'error', code:'NEED_CONFIRM', message:'まだ書いていません。先に dryRun="true" で同じ fn・args を送り、内容を読み上げて本人の「はい」を聞いてから書いてください' };
+  }
+  const c = chip('📝 記録しています…');
+  const after = turns.slice(Math.min(pv.n, turns.length)).join(' ／ ');
+  const res = await gas(Object.assign(base, { utterance: (pv.utter + (after ? ' ／ ' + after : '')).trim(), dryRun: 'false', confirmed: 'true' }));
+  if(res.ok){ delete previews[k]; turns = []; c.textContent = (res.level === 'warning' ? '⚠ 記録しました（注意あり）' : '✅ 記録しました') + (res.opId ? ' ' + res.opId : ''); c.className = 'chip ' + (res.level === 'warning' ? 'warn' : 'ok'); }
+  else { c.textContent = '✕ 書けませんでした：' + (res.message || ''); c.className = 'chip bad'; }
+  return res;
+}
+
+/* ===== 開始と終了 ===== */
+async function begin(){
+  if(!KEY){ setStatus('配られたURL（k= が付いたもの）から開いてください', true); return; }
+  if(!WHO) await askName();
+  $('mic').disabled = true;
+  try{
+    await startAudio();
+    started = Date.now(); secSent = 0; usage = 0; turns = []; handle = null; closing = false;
+    await connect(false);
+    $('mic').classList.add('live'); $('mic').textContent = '話し中'; $('mic').disabled = false; $('end').disabled = false;
+    send({ clientContent: { turns: [{ role: 'user', parts: [{ text: '（いま接続しました。ひとことで挨拶して、何を確かめたいか・記録したいかを聞いてください）' }] }], turnComplete: true } });
+    tick = setInterval(meter, 1000);
+  }catch(e){
+    stopAudio(); $('mic').disabled = false;
+    const msg = e && e.name === 'NotAllowedError' ? 'マイクの使用が許可されていません。ブラウザの設定でマイクを許可してください' : String(e && e.message || e);
+    setStatus(msg, true);
+  }
+}
+let tick = null;
+function meter(){ if(!started) return; const m = Math.floor((Date.now() - started) / 60000); $('meter').textContent = `会話 ${m}分・送った音声 ${Math.round(secSent)}秒`; }
+function endSession(silent){
+  closing = true; ready = false;
+  try{ ws && ws.close(); }catch(e){}
+  ws = null; stopAudio(); clearInterval(tick);
+  $('mic').classList.remove('live'); $('mic').textContent = '話す'; $('mic').disabled = false; $('end').disabled = true; $('hush').disabled = true;
+  if(!silent) setStatus('終わりました。また話すときはボタンを押してください');
+  meter(); started = 0;
+}
+$('mic').onclick = () => { if(!ws) begin(); };
+$('end').onclick = () => endSession(false);
+$('hush').onclick = () => { stopPlay(); dropAudio = true; lastVoice = performance.now(); setStatus('聞いています。どうぞ話してください'); };
+window.addEventListener('pagehide', () => { if(ws) endSession(true); });
+
+// テスト用
+window.__voice = { onServer, runTools, doRecord, state: () => ({ ready, busy, heard: heard(), previews: Object.keys(previews), secSent, usage }) };
+})();
+</script>
+</body>
+</html>
