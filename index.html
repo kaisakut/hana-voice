@@ -256,7 +256,7 @@ function sendLogs(final){
   rows.forEach(r => { cur.push(r); if(encodeURIComponent(JSON.stringify(cur)).length > 5000){ const last = cur.pop(); if(cur.length) chunks.push(cur); cur = [last]; } });
   if(cur.length) chunks.push(cur);
   chunks.forEach(c => {
-    const u = new URLSearchParams({ voice: 'log', k: KEY, sid, r: WHO, rows: JSON.stringify(c) });
+    const u = new URLSearchParams({ voice: 'log', k: KEY, conv: sid, r: WHO, rows: JSON.stringify(c) });   // sid は Google 側の予約語で 400 になるので conv で送る
     try{ fetch(GAS + '?' + u.toString(), { keepalive: !!final }).catch(() => {}); }catch(e){}
   });
 }
