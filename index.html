@@ -390,7 +390,13 @@ async function doRecord(a){
   }
   const c = chip('📝 記録しています…');
   const after = turns.slice(Math.min(pv.n, turns.length)).join(' ／ ');
-  const res = await gas(Object.assign(base, { utterance: (pv.utter + (after ? ' ／ ' + after : '')).trim(), dryRun: 'false', confirmed: 'true' }));
+  const res = await gas(Object.assign(base, { utterance: (pv.utter + (after ? ' ／ ' + after : '')).trim(), dryRun: 'false', confirmed: 'true' }), 120000);
+  if(res.code === 'NETWORK' || res.code === 'NOT_JSON'){
+    // 答えが届かなくても、GAS 側では書けていることがある。やり直させずに確かめさせる（同じ依頼は GAS 側でも二重に書かない）
+    delete previews[k]; turns = [];
+    c.textContent = '❓ 記録できたか確認中（答えが届きませんでした）'; c.className = 'chip warn';
+    return { ok:false, level:'error', code:'UNKNOWN_RESULT', message:'書き込みの答えが届きませんでした。記録できている可能性があります。もう一度書かずに、query でそのロット（または場所）を照会して、記録されたかを確かめてから本人に伝えてください' };
+  }
   if(res.ok){ delete previews[k]; turns = []; c.textContent = (res.level === 'warning' ? '⚠ 記録しました（注意あり）' : '✅ 記録しました') + (res.opId ? ' ' + res.opId : ''); c.className = 'chip ' + (res.level === 'warning' ? 'warn' : 'ok'); }
   else { c.textContent = '✕ 書けませんでした：' + (res.message || ''); c.className = 'chip bad'; }
   return res;
