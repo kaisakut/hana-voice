@@ -263,6 +263,7 @@ function sendLogs(final){
 
 /* ===== Gemini Live ===== */
 let ws = null, ready = false, handle = null, tok = null, busy = 0, started = 0, secSent = 0, closing = false, usage = 0;
+let lastClose = '';
 function send(o){ if(ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
 async function connect(isResume){
@@ -271,10 +272,16 @@ async function connect(isResume){
     tok = await gas({ voice: 'token', r: WHO });
     if(!tok.ok){ throw new Error(tok.message || '鍵をもらえませんでした'); }
     const vs = [tok.ver].concat(VERSIONS).filter((v, j, a) => v && a.indexOf(v) === j);   // 鍵を発行できた版から試す
+    lastClose = '';
     const ok = await openWs(vs[i] || VERSIONS[i]);
     if(ok) return;
+    // 料金・上限で断られたときは、版を変えても同じなので試し直さない（鍵の無駄づかいを防ぐ）
+    if(/credit|billing|prepay|quota|exhausted|exceeded|limit/i.test(lastClose)){
+      logPush('エラー', 'Gemini から拒否：' + lastClose.slice(0, 200));
+      throw new Error('Gemini の利用料金の残高（前払い）が切れているか、上限に達しています。管理者（武内さん）に連絡してください');
+    }
   }
-  throw new Error('Gemini につながりませんでした');
+  throw new Error('Gemini につながりませんでした' + (lastClose ? '（' + lastClose.slice(0, 80) + '）' : ''));
 }
 function openWs(ver){
   return new Promise(resolve => {
@@ -299,7 +306,7 @@ function openWs(ver){
       if(w === ws) onServer(m);
     };
     w.onclose = ev => {
-      if(!done){ fin(false); return; }
+      if(!done){ lastClose = ev.reason || ('code ' + ev.code); fin(false); return; }
       if(w !== ws || closing) return;
       ready = false;
       setStatus('接続が切れました' + (ev.reason ? '（' + ev.reason + '）' : '') + '。もう一度「話す」を押してください', true);
