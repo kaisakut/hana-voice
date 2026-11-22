@@ -339,7 +339,9 @@ const cancelled = new Set();
 let turns = [], lastHeardAt = 0;          // 本人の発話（直近4回まで。記録したら空にする）
 const heard = () => turns.join(' ／ ').trim();
 const previews = {};          // 読み上げて確認した記録（fn＋args → 時刻と発話）
-function keyOf(a){ let x = a.args; try{ x = JSON.stringify(JSON.parse(a.args)); }catch(e){} return a.fn + '|' + x; }
+// 読み上げた内容と書く内容が同じかを比べる。キーの並び順が違っても同じとみなす
+function canon(v){ return Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' : (v && typeof v === 'object') ? '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}' : JSON.stringify(v); }
+function keyOf(a){ let x = a.args; try{ x = canon(typeof a.args === 'string' ? JSON.parse(a.args) : a.args); }catch(e){} return a.fn + '|' + x; }
 function trim(o){
   // 長すぎる答えは配列を短くしてから渡す（会話の記憶を圧迫しないように）
   const s = JSON.stringify(o); if(s.length < 8000) return o;
