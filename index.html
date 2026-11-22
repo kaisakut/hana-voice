@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>作付け 音声アシスタント</title>
@@ -107,7 +108,7 @@ dialog button.pri{background:var(--accent);color:var(--accent-ink);border-color:
 <dialog id="nameDlg">
   <h2>記録者の名前</h2>
   <p>台帳に記録するとき、記録者として残ります。</p>
-  <input id="nameIn" autocomplete="name" placeholder="例：井上">
+  <input id="nameIn" autocomplete="name" placeholder="例：山田">
   <div class="btns"><button id="nameNo">あとで</button><button id="nameOk" class="pri">決める</button></div>
 </dialog>
 
@@ -278,7 +279,7 @@ async function connect(isResume){
     // 料金・上限で断られたときは、版を変えても同じなので試し直さない（鍵の無駄づかいを防ぐ）
     if(/credit|billing|prepay|quota|exhausted|exceeded|limit/i.test(lastClose)){
       logPush('エラー', 'Gemini から拒否：' + lastClose.slice(0, 200));
-      throw new Error('Gemini の利用料金の残高（前払い）が切れているか、上限に達しています。管理者（武内さん）に連絡してください');
+      throw new Error('Gemini の利用料金の残高（前払い）が切れているか、上限に達しています。管理者に連絡してください');
     }
   }
   throw new Error('Gemini につながりませんでした' + (lastClose ? '（' + lastClose.slice(0, 80) + '）' : ''));
